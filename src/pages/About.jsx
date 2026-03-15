@@ -1,7 +1,7 @@
 import { useState } from 'react';
 
 export default function About() {
-  // State to manage which Accordion item is open
+  
   const [openFaq, setOpenFaq] = useState(null);
 
   const toggleFaq = (index) => {
@@ -17,7 +17,7 @@ export default function About() {
   return (
     <div className="flex flex-col gap-16 pb-12 animate-fade-in-down">
       
-      {/* PAGE HEADER */}
+      
       <div className="text-center mt-8">
         <h1 className="text-4xl md:text-5xl font-extrabold text-gray-900 dark:text-white mb-4">
           About <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-500">ByteForge</span>
@@ -27,7 +27,7 @@ export default function About() {
         </p>
       </div>
 
-      {/* 1. STATS COMPONENT (Grid Layout) */}
+      
       <section className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
         {[
           { label: 'Happy Customers', value: '50k+' },
@@ -42,7 +42,7 @@ export default function About() {
         ))}
       </section>
 
-      {/* 2. TIMELINE COMPONENT (Flexbox) */}
+      
       <section className="max-w-3xl mx-auto w-full">
         <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-8 text-center">Our Journey</h2>
         <div className="space-y-8 border-l-2 border-blue-200 dark:border-blue-900 ml-4 md:ml-0 pl-6 md:pl-8 relative">
@@ -52,7 +52,7 @@ export default function About() {
             { year: '2026', title: 'Global Expansion', desc: 'Opened our global storefront to serve creators worldwide.' },
           ].map((item, idx) => (
             <div key={idx} className="relative">
-              {/* Timeline Dot */}
+              
               <div className="absolute -left-[35px] md:-left-[41px] top-1 w-5 h-5 bg-blue-500 rounded-full border-4 border-white dark:border-gray-950"></div>
               <h3 className="text-xl font-bold text-gray-900 dark:text-white">{item.year} - {item.title}</h3>
               <p className="text-gray-600 dark:text-gray-400 mt-2">{item.desc}</p>
@@ -61,7 +61,7 @@ export default function About() {
         </div>
       </section>
 
-      {/* 3. TEAM SECTION COMPONENT (Grid Layout & Hover Effects) */}
+      
       <section>
         <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-8 text-center">Meet the Forgers</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -81,7 +81,7 @@ export default function About() {
         </div>
       </section>
 
-      {/* 4. TESTIMONIAL COMPONENT */}
+      
       <section className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-3xl p-8 md:p-12 text-center text-white shadow-xl">
         <h2 className="text-2xl font-bold mb-6 text-blue-100">Industry Recognition</h2>
         <blockquote className="text-xl md:text-2xl font-medium italic mb-6 max-w-4xl mx-auto leading-relaxed">
@@ -90,7 +90,7 @@ export default function About() {
         <div className="font-bold">- Tech Hardware Quarterly</div>
       </section>
 
-      {/* 5. ACCORDION (FAQ) COMPONENT (Interactive State) */}
+      
       <section className="max-w-2xl mx-auto w-full">
         <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-8 text-center">Frequently Asked Questions</h2>
         <div className="space-y-4">

@@ -1,10 +1,13 @@
 import { useState } from 'react';
+import PromoDeal from '../components/PromoDeal';
+
+
 
 export default function Home() {
   const [showAlert, setShowAlert] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // Mock Data for the store
+  // Mock Data abhi kay liay
   const products = [
     { id: 1, name: 'Quantum Pro Laptop', price: '$1,299', tag: 'New', image: '💻' },
     { id: 2, name: 'Sonic Noise-Canceling Pods', price: '$249', tag: 'Sale', image: '🎧' },
@@ -14,13 +17,15 @@ export default function Home() {
   return (
     <div className="flex flex-col gap-12 pb-10">
       
-      {/* 1. ALERT COMPONENT (Promo Banner) */}
+      
       {showAlert && (
         <div className="relative flex items-center justify-between p-4 mb-4 text-sm text-blue-800 rounded-lg bg-blue-50 dark:bg-gray-800 dark:text-blue-400 animate-fade-in-down" role="alert">
           <span className="font-medium">Special Offer!</span> Get 20% off all RGB accessories this weekend.
           <button onClick={() => setShowAlert(false)} className="ml-auto font-bold hover:text-blue-600">X</button>
         </div>
       )}
+
+      
 
       {/* 2. HERO SECTION COMPONENT */}
       <section className="relative bg-white dark:bg-gray-900 overflow-hidden rounded-3xl shadow-xl border border-gray-100 dark:border-gray-800">
@@ -48,7 +53,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* 3. MEGA MENU / CATEGORY PILLS COMPONENT (Simulated Flex Layout) */}
+      {/* 3. MEGA MENU */}
       <div className="flex flex-wrap gap-4 justify-center">
         {['Laptops', 'Audio', 'Keyboards', 'Monitors', 'Components'].map((cat) => (
           <button key={cat} className="px-6 py-2 rounded-full border border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 transition-colors font-medium">
@@ -57,7 +62,7 @@ export default function Home() {
         ))}
       </div>
 
-      {/* 4. PRODUCT CARDS COMPONENT (Grid Layout) & 5. BADGES COMPONENT */}
+      {/* 4. PRODUCT CARDS */}
       <section>
         <h2 className="text-3xl font-bold mb-6 text-gray-900 dark:text-white">Featured Gear</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -90,9 +95,14 @@ export default function Home() {
             </div>
           ))}
         </div>
+            <div className="animate-fade-in-down">
+
+      <PromoDeal />
+
+    </div>
       </section>
 
-      {/* 7. MODAL COMPONENT (Quick View) */}
+      
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm animate-fade-in">
           <div className="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-2xl max-w-md w-full relative transform scale-100">
