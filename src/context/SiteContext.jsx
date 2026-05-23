@@ -1,73 +1,86 @@
 import { createContext, useContext, useState, useEffect } from 'react';
+import { collection, onSnapshot, doc, setDoc, getDoc } from 'firebase/firestore'; // Added getDoc
+import { onAuthStateChanged } from 'firebase/auth';
+import { db, auth } from '../firebase'; 
 
 const SiteContext = createContext();
 
-// ==========================================
-// 1. PREMADE DEFAULT DATA (The "Seed" Database)
-// ==========================================
-const DEFAULT_IMAGES = [
-  { id: 1, title: 'Neon Workstation', url: 'https://images.unsplash.com/photo-1603302576837-37561b2e2302?auto=format&fit=crop&w=1920&q=80', category: 'Hero', status: 'Active', tag: 'Premium' },
-  { id: 2, title: 'Minimalist Desk', url: 'https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?auto=format&fit=crop&w=1920&q=80', category: 'Hero', status: 'Active', tag: 'Workspace' },
-  { id: 3, title: 'Mechanical Keyboard', url: 'https://images.unsplash.com/photo-1595225476474-87563907a212?auto=format&fit=crop&w=800&q=80', category: 'Gallery', status: 'Active', tag: 'Gear' },
-  { id: 4, title: 'Dual Monitor Setup', url: 'https://images.unsplash.com/photo-1525547719571-a2d4ac8945e2?auto=format&fit=crop&w=800&q=80', category: 'Gallery', status: 'Active', tag: 'Productivity' },
-  { id: 5, title: 'RGB PC Build', url: 'https://images.unsplash.com/photo-1587831990711-23ca6441447b?auto=format&fit=crop&w=800&q=80', category: 'Gallery', status: 'Active', tag: 'Gaming' },
-  { id: 6, title: 'Studio Audio', url: 'https://images.unsplash.com/photo-1590602847861-f357a9332bbc?auto=format&fit=crop&w=800&q=80', category: 'Gallery', status: 'Active', tag: 'Audio' }
-];
-
-const DEFAULT_PRODUCTS = [
-  { id: 1, name: 'Quantum Pro Laptop', price: '$1,299', tag: 'New', image: '💻', status: 'Active' },
-  { id: 2, name: 'Sonic Noise-Canceling Pods', price: '$249', tag: 'Sale', image: '🎧', status: 'Active' },
-  { id: 3, name: 'MechKey RGB Keyboard', price: '$129', tag: 'Hot', image: '⌨️', status: 'Active' },
-];
-
 const DEFAULT_SETTINGS = {
-  promoActive: true,
-  promoText: 'Special Offer! Get 20% off all RGB accessories this weekend.',
-  newsletterTitle: 'Join the Insider Club',
-  newsletterSubtitle: 'Get early access to tech drops and exclusive discounts.',
+  // ... your existing default settings
 };
 
 export function SiteProvider({ children }) {
-  // ==========================================
-  // 2. STATE INITIALIZATION (Checks LocalStorage first)
-  // ==========================================
-  const [images, setImages] = useState(() => {
-    const saved = localStorage.getItem('byteforge_images');
-    return saved ? JSON.parse(saved) : DEFAULT_IMAGES;
-  });
-
-  const [products, setProducts] = useState(() => {
-    const saved = localStorage.getItem('byteforge_products');
-    return saved ? JSON.parse(saved) : DEFAULT_PRODUCTS;
-  });
-
-  const [settings, setSettings] = useState(() => {
-    const saved = localStorage.getItem('byteforge_settings');
-    return saved ? JSON.parse(saved) : DEFAULT_SETTINGS;
-  });
-
-  // ==========================================
-  // 3. AUTO-SAVE TO LOCALSTORAGE ON CHANGE
-  // ==========================================
-  useEffect(() => {
-    localStorage.setItem('byteforge_images', JSON.stringify(images));
-  }, [images]);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [images, setImages] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [usersList, setUsersList] = useState([]); // NEW: Store all users
+  const [isAdmin, setIsAdmin] = useState(false);  // NEW: Track admin status
+  const [settings, setSettings] = useState(DEFAULT_SETTINGS); 
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    localStorage.setItem('byteforge_products', JSON.stringify(products));
-  }, [products]);
+    const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        // --- FIRESTORE USER SYNC ---
+        const userRef = doc(db, 'users', user.uid);
+        const userSnap = await getDoc(userRef);
 
-  useEffect(() => {
-    localStorage.setItem('byteforge_settings', JSON.stringify(settings));
-  }, [settings]);
+        if (!userSnap.exists()) {
+          // No duplicate records: Only create if they don't exist
+          await setDoc(userRef, {
+            email: user.email,
+            displayName: user.displayName || 'New User',
+            role: 'user', // Default role for new signups
+            photoURL: user.photoURL || '',
+            createdAt: new Date().toISOString()
+          });
+          setIsAdmin(false);
+        } else {
+          // Check if the database says they are an admin
+          setIsAdmin(userSnap.data().role === 'admin');
+        }
+      } else {
+        setIsAdmin(false);
+      }
+      
+      setCurrentUser(user);
+      setLoading(false); 
+    });
+
+    const unsubscribeImages = onSnapshot(collection(db, 'images'), (snapshot) => {
+      setImages(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
+
+    const unsubscribeProducts = onSnapshot(collection(db, 'products'), (snapshot) => {
+      setProducts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
+
+    // NEW: Listen to the users collection
+    const unsubscribeUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
+      setUsersList(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
+
+    return () => {
+      unsubscribeAuth();
+      unsubscribeImages();
+      unsubscribeProducts();
+      unsubscribeUsers();
+    };
+  }, []);
+
+  // ... your existing saveImageToDb function
 
   return (
     <SiteContext.Provider value={{ 
-      images, setImages, 
-      products, setProducts, 
-      settings, setSettings 
+      currentUser,
+      images, 
+      products, 
+      usersList, // Export new state
+      isAdmin,   // Export new state
+      settings,
+      loading
     }}>
-      {children}
+      {!loading && children}
     </SiteContext.Provider>
   );
 }

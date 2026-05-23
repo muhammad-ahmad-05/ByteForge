@@ -1,198 +1,271 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { useSiteData } from '../context/SiteContext';
+import { db } from '../firebase';
+import { collection, addDoc, deleteDoc, doc, updateDoc } from 'firebase/firestore';
+import { Navigate } from 'react-router-dom';
 
 export default function AdminPanel() {
-  const { images, setImages, products, setProducts, settings, setSettings } = useSiteData();
+  const { images, products, usersList, currentUser, isAdmin } = useSiteData();
   
-  // Dashboard Tabs
-  const [activeTab, setActiveTab] = useState('assets'); // 'assets', 'products', 'settings'
+  // --- PRODUCT STATE ---
+  const [productName, setProductName] = useState('');
+  const [productPrice, setProductPrice] = useState('');
+  const [productTag, setProductTag] = useState('New');
+  const [productEmoji, setProductEmoji] = useState('💻');
+  const [loadingProduct, setLoadingProduct] = useState(false);
+  const [editingProductId, setEditingProductId] = useState(null);
 
-  // ==========================================
-  // ASSET (IMAGE) CRUD STATE
-  // ==========================================
-  const [imageForm, setImageForm] = useState({ id: null, title: '', url: '', category: 'Gallery', status: 'Active', tag: '' });
-  const [isEditingImage, setIsEditingImage] = useState(false);
+  // --- IMAGE STATE ---
+  const [imageTitle, setImageTitle] = useState('');
+  const [imageUrl, setImageUrl] = useState('');
+  const [imageCategory, setImageCategory] = useState('Gallery');
+  const [loadingImage, setLoadingImage] = useState(false);
+  const [editingImageId, setEditingImageId] = useState(null);
 
-  const handleImageSubmit = (e) => {
+  // 🔒 Strict Security Check: Must be logged in AND have the 'admin' role
+  if (!currentUser || !isAdmin) {
+    return <Navigate to="/" replace />;
+  }
+
+  // --- PRODUCT FUNCTIONS ---
+  const handleProductSubmit = async (e) => {
     e.preventDefault();
-    if (isEditingImage) {
-      setImages(images.map(img => img.id === imageForm.id ? imageForm : img));
-      setIsEditingImage(false);
-    } else {
-      setImages([...images, { ...imageForm, id: Date.now() }]);
+    setLoadingProduct(true);
+    const productData = { name: productName, price: productPrice, tag: productTag, image: productEmoji, status: 'Active' };
+    try {
+      if (editingProductId) {
+        await updateDoc(doc(db, 'products', editingProductId), productData);
+      } else {
+        await addDoc(collection(db, 'products'), productData);
+      }
+      resetProductForm();
+    } catch (error) {
+      console.error("Error saving product: ", error);
+      alert("Failed to save product.");
+    } finally {
+      setLoadingProduct(false);
     }
-    setImageForm({ id: null, title: '', url: '', category: 'Gallery', status: 'Active', tag: '' });
   };
 
-  // ==========================================
-  // PRODUCT CRUD STATE
-  // ==========================================
-  const [productForm, setProductForm] = useState({ id: null, name: '', price: '', tag: '', image: '', status: 'Active' });
-  const [isEditingProduct, setIsEditingProduct] = useState(false);
+  const startEditProduct = (product) => {
+    setProductName(product.name); setProductPrice(product.price); setProductTag(product.tag); setProductEmoji(product.image); setEditingProductId(product.id);
+  };
 
-  const handleProductSubmit = (e) => {
+  const resetProductForm = () => {
+    setProductName(''); setProductPrice(''); setProductTag('New'); setProductEmoji('💻'); setEditingProductId(null);
+  };
+
+  // --- IMAGE FUNCTIONS ---
+  const handleImageSubmit = async (e) => {
     e.preventDefault();
-    if (isEditingProduct) {
-      setProducts(products.map(p => p.id === productForm.id ? productForm : p));
-      setIsEditingProduct(false);
-    } else {
-      setProducts([...products, { ...productForm, id: Date.now() }]);
+    setLoadingImage(true);
+    const imageData = { title: imageTitle, url: imageUrl, category: imageCategory, status: 'Active' };
+    try {
+      if (editingImageId) {
+        await updateDoc(doc(db, 'images', editingImageId), imageData);
+      } else {
+        await addDoc(collection(db, 'images'), imageData);
+      }
+      resetImageForm();
+    } catch (error) {
+      console.error("Error saving image: ", error);
+      alert("Failed to save image.");
+    } finally {
+      setLoadingImage(false);
     }
-    setProductForm({ id: null, name: '', price: '', tag: '', image: '', status: 'Active' });
+  };
+
+  const startEditImage = (image) => {
+    setImageTitle(image.title); setImageUrl(image.url); setImageCategory(image.category); setEditingImageId(image.id);
+  };
+
+  const resetImageForm = () => {
+    setImageTitle(''); setImageUrl(''); setImageCategory('Gallery'); setEditingImageId(null);
+  };
+
+  // --- USER ROLE FUNCTION ---
+  const handleRoleChange = async (userId, newRole) => {
+    if (window.confirm(`Are you sure you want to make this user an ${newRole}?`)) {
+      try {
+        await updateDoc(doc(db, 'users', userId), { role: newRole });
+      } catch (error) {
+        console.error("Error updating user role:", error);
+        alert("Failed to update role.");
+      }
+    }
+  };
+
+  // --- UNIVERSAL DELETE FUNCTION ---
+  const handleDelete = async (collectionName, id) => {
+    if (window.confirm(`Are you sure you want to delete this ${collectionName.slice(0, -1)}?`)) {
+      try {
+        await deleteDoc(doc(db, collectionName, id));
+        if (collectionName === 'products' && editingProductId === id) resetProductForm();
+        if (collectionName === 'images' && editingImageId === id) resetImageForm();
+      } catch (error) {
+        console.error(`Error deleting ${collectionName}: `, error);
+        alert("Failed to delete item.");
+      }
+    }
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8 animate-fade-in-down">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-        <h1 className="text-4xl font-extrabold text-gray-900 dark:text-white">Admin Control Panel</h1>
-        
-        {/* DASHBOARD NAVIGATION */}
-        <div className="flex bg-gray-100 dark:bg-gray-800 p-1 rounded-xl">
-          {['assets', 'products', 'settings'].map(tab => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`px-6 py-2 rounded-lg text-sm font-bold capitalize transition-all ${
-                activeTab === tab 
-                  ? 'bg-white dark:bg-gray-700 shadow text-blue-600 dark:text-blue-400' 
-                  : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'
-              }`}
-            >
-              {tab}
-            </button>
-          ))}
+    <div className="max-w-6xl mx-auto space-y-8 p-4 mb-20">
+      <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-800 pb-6">
+        <div>
+          <h1 className="text-3xl font-black text-gray-900 dark:text-white">Admin Dashboard</h1>
+          <p className="text-gray-500 dark:text-gray-400 mt-1">Manage platform data and user permissions</p>
+        </div>
+        <div className="text-sm font-bold text-green-700 bg-green-100 dark:bg-green-900/30 dark:text-green-400 px-4 py-2 rounded-xl flex items-center gap-2 shadow-sm border border-green-200 dark:border-green-800">
+          <span>👑</span> Admin: {currentUser.email}
         </div>
       </div>
 
-      {/* ========================================== */}
-      {/* TAB 1: ASSET MANAGER (IMAGES) */}
-      {/* ========================================== */}
-      {activeTab === 'assets' && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 h-fit">
-            <h2 className="text-2xl font-bold mb-6 text-gray-900 dark:text-white">{isEditingImage ? '✏️ Edit Asset' : '🖼️ Add Image'}</h2>
-            <form onSubmit={handleImageSubmit} className="space-y-4">
-              <input type="text" placeholder="Title" value={imageForm.title} onChange={e => setImageForm({...imageForm, title: e.target.value})} required className="w-full px-4 py-2 rounded-lg border dark:bg-gray-900 dark:text-white" />
-              <input type="url" placeholder="Image URL" value={imageForm.url} onChange={e => setImageForm({...imageForm, url: e.target.value})} required className="w-full px-4 py-2 rounded-lg border dark:bg-gray-900 dark:text-white" />
-              <div className="grid grid-cols-2 gap-4">
-                <select value={imageForm.category} onChange={e => setImageForm({...imageForm, category: e.target.value})} className="w-full px-4 py-2 rounded-lg border dark:bg-gray-900 dark:text-white">
-                  <option value="Hero">Hero</option>
-                  <option value="Gallery">Gallery</option>
-                </select>
-                <select value={imageForm.status} onChange={e => setImageForm({...imageForm, status: e.target.value})} className="w-full px-4 py-2 rounded-lg border dark:bg-gray-900 dark:text-white">
-                  <option value="Active">Active</option>
-                  <option value="Inactive">Inactive</option>
-                </select>
-              </div>
-              <button type="submit" className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-colors">
-                {isEditingImage ? 'Update Asset' : 'Add Asset'}
-              </button>
-            </form>
-          </div>
-          <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {images.map(img => (
-              <div key={img.id} className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow border border-gray-100 dark:border-gray-700 flex flex-col gap-2">
-                <img src={img.url} alt={img.title} className="h-32 w-full object-cover rounded-lg" />
-                <h3 className="font-bold text-gray-900 dark:text-white">{img.title}</h3>
-                <div className="flex gap-2 mt-auto">
-                  <button onClick={() => {setImageForm(img); setIsEditingImage(true)}} className="flex-1 py-1 bg-yellow-100 text-yellow-800 rounded">Edit</button>
-                  <button onClick={() => setImages(images.filter(i => i.id !== img.id))} className="flex-1 py-1 bg-red-100 text-red-800 rounded">Delete</button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* ========================================== */}
-      {/* TAB 2: PRODUCT MANAGER */}
-      {/* ========================================== */}
-      {activeTab === 'products' && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 h-fit">
-            <h2 className="text-2xl font-bold mb-6 text-gray-900 dark:text-white">{isEditingProduct ? '✏️ Edit Product' : '📦 Add Product'}</h2>
-            <form onSubmit={handleProductSubmit} className="space-y-4">
-              <input type="text" placeholder="Product Name" value={productForm.name} onChange={e => setProductForm({...productForm, name: e.target.value})} required className="w-full px-4 py-2 rounded-lg border dark:bg-gray-900 dark:text-white" />
-              <input type="text" placeholder="Price (e.g. $199)" value={productForm.price} onChange={e => setProductForm({...productForm, price: e.target.value})} required className="w-full px-4 py-2 rounded-lg border dark:bg-gray-900 dark:text-white" />
-              <input type="text" placeholder="Icon/Emoji (e.g. 🎧)" value={productForm.image} onChange={e => setProductForm({...productForm, image: e.target.value})} required className="w-full px-4 py-2 rounded-lg border dark:bg-gray-900 dark:text-white" />
-              <div className="grid grid-cols-2 gap-4">
-                <input type="text" placeholder="Tag (e.g. Sale)" value={productForm.tag} onChange={e => setProductForm({...productForm, tag: e.target.value})} className="w-full px-4 py-2 rounded-lg border dark:bg-gray-900 dark:text-white" />
-                <select value={productForm.status} onChange={e => setProductForm({...productForm, status: e.target.value})} className="w-full px-4 py-2 rounded-lg border dark:bg-gray-900 dark:text-white">
-                  <option value="Active">Active</option>
-                  <option value="Inactive">Inactive</option>
-                </select>
-              </div>
-              <button type="submit" className="w-full py-3 bg-purple-600 text-white font-bold rounded-xl hover:bg-purple-700 transition-colors">
-                {isEditingProduct ? 'Update Product' : 'Add Product'}
-              </button>
-            </form>
-          </div>
-          <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {products.map(p => (
-              <div key={p.id} className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow border border-gray-100 dark:border-gray-700 flex flex-col">
-                <div className="flex justify-between items-start">
-                  <span className="text-4xl">{p.image}</span>
-                  <span className={`text-xs px-2 py-1 rounded-full text-white ${p.status === 'Active' ? 'bg-green-500' : 'bg-red-500'}`}>{p.status}</span>
-                </div>
-                <h3 className="font-bold text-gray-900 dark:text-white mt-4">{p.name}</h3>
-                <p className="text-gray-500">{p.price}</p>
-                <div className="flex gap-2 mt-4">
-                  <button onClick={() => {setProductForm(p); setIsEditingProduct(true)}} className="flex-1 py-1 bg-yellow-100 text-yellow-800 rounded">Edit</button>
-                  <button onClick={() => setProducts(products.filter(item => item.id !== p.id))} className="flex-1 py-1 bg-red-100 text-red-800 rounded">Delete</button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* ========================================== */}
-      {/* TAB 3: GLOBAL SITE SETTINGS */}
-      {/* ========================================== */}
-      {activeTab === 'settings' && (
-        <div className="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 max-w-2xl">
-          <h2 className="text-2xl font-bold mb-6 text-gray-900 dark:text-white">⚙️ Site Settings</h2>
-          
-          <div className="space-y-6">
-            <div className="p-4 border dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-900">
-              <label className="flex items-center space-x-3 mb-4 cursor-pointer">
-                <input 
-                  type="checkbox" 
-                  checked={settings.promoActive} 
-                  onChange={e => setSettings({...settings, promoActive: e.target.checked})}
-                  className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500" 
-                />
-                <span className="font-bold text-gray-900 dark:text-white">Enable Top Promo Banner</span>
-              </label>
-              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Promo Text</label>
-              <input 
-                type="text" 
-                value={settings.promoText} 
-                onChange={e => setSettings({...settings, promoText: e.target.value})} 
-                className="w-full px-4 py-2 rounded-lg border dark:bg-gray-800 dark:text-white" 
-              />
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+        
+        {/* --- PRODUCTS MANAGEMENT --- */}
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700">
+          <h2 className="text-xl font-bold text-blue-600 dark:text-blue-400 mb-4 flex items-center gap-2">
+            <span>📦</span> {editingProductId ? 'Edit Product' : 'Add New Product'}
+          </h2>
+          <form onSubmit={handleProductSubmit} className="space-y-4 mb-8">
+            <div className="flex gap-4">
+              <input type="text" placeholder="Emoji (e.g. 🎧)" required maxLength="5" className="w-20 px-4 py-2 text-center text-xl bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg dark:text-white" value={productEmoji} onChange={(e) => setProductEmoji(e.target.value)} />
+              <input type="text" placeholder="Product Name" required className="flex-1 px-4 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg dark:text-white" value={productName} onChange={(e) => setProductName(e.target.value)} />
             </div>
-
-            <div className="p-4 border dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-900">
-              <h3 className="font-bold text-gray-900 dark:text-white mb-4">Newsletter Section</h3>
-              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Title</label>
-              <input 
-                type="text" 
-                value={settings.newsletterTitle} 
-                onChange={e => setSettings({...settings, newsletterTitle: e.target.value})} 
-                className="w-full px-4 py-2 mb-4 rounded-lg border dark:bg-gray-800 dark:text-white" 
-              />
-              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Subtitle</label>
-              <input 
-                type="text" 
-                value={settings.newsletterSubtitle} 
-                onChange={e => setSettings({...settings, newsletterSubtitle: e.target.value})} 
-                className="w-full px-4 py-2 rounded-lg border dark:bg-gray-800 dark:text-white" 
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <input type="text" placeholder="Price (e.g. $1,299)" required className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg dark:text-white" value={productPrice} onChange={(e) => setProductPrice(e.target.value)} />
+              <select className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg dark:text-white" value={productTag} onChange={(e) => setProductTag(e.target.value)}>
+                <option value="New">New</option>
+                <option value="Sale">Sale</option>
+                <option value="Hot">Hot</option>
+              </select>
             </div>
+            <div className="flex gap-3">
+              <button type="submit" disabled={loadingProduct} className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-colors disabled:opacity-50 shadow-sm">
+                {loadingProduct ? 'Saving...' : (editingProductId ? 'Update Product' : 'Save Product')}
+              </button>
+              {editingProductId && (
+                <button type="button" onClick={resetProductForm} className="px-4 py-3 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-white font-bold rounded-xl transition-colors">Cancel</button>
+              )}
+            </div>
+          </form>
+
+          <h3 className="font-bold text-gray-400 uppercase text-xs tracking-wider mb-3 pb-2 border-b border-gray-100 dark:border-gray-700">Active Products</h3>
+          <ul className="space-y-3 max-h-80 overflow-y-auto pr-2">
+            {products.map(product => (
+              <li key={product.id} className="flex justify-between items-center bg-gray-50 dark:bg-gray-900 p-3 rounded-xl border border-transparent hover:border-gray-200 dark:hover:border-gray-700 transition-colors">
+                <div className="flex items-center gap-4">
+                  <span className="text-2xl">{product.image}</span>
+                  <div>
+                    <span className="font-bold text-gray-900 dark:text-white block">{product.name}</span>
+                    <span className="text-xs font-medium text-gray-500">{product.price} • {product.tag}</span>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => startEditProduct(product)} className="text-blue-600 hover:text-blue-800 text-sm font-bold bg-blue-100 dark:bg-blue-900/30 px-3 py-1 rounded-lg transition-colors">Edit</button>
+                  <button onClick={() => handleDelete('products', product.id)} className="text-red-600 hover:text-red-800 text-sm font-bold bg-red-100 dark:bg-red-900/30 px-3 py-1 rounded-lg transition-colors">Delete</button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        {/* --- IMAGES MANAGEMENT --- */}
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700">
+          <h2 className="text-xl font-bold text-purple-600 dark:text-purple-400 mb-4 flex items-center gap-2">
+            <span>🖼️</span> {editingImageId ? 'Edit Image URL' : 'Add Image URL'}
+          </h2>
+          <form onSubmit={handleImageSubmit} className="space-y-4 mb-8">
+            <input type="text" placeholder="Image Title" required className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg dark:text-white" value={imageTitle} onChange={(e) => setImageTitle(e.target.value)} />
+            <input type="url" placeholder="https://unsplash.com/..." required className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg dark:text-white" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} />
+            <select className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg dark:text-white" value={imageCategory} onChange={(e) => setImageCategory(e.target.value)}>
+              <option value="Hero">Hero Banner</option>
+              <option value="Gallery">Gallery Item</option>
+            </select>
+            <div className="flex gap-3">
+              <button type="submit" disabled={loadingImage} className="flex-1 py-3 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl transition-colors disabled:opacity-50 shadow-sm">
+                {loadingImage ? 'Saving...' : (editingImageId ? 'Update Image' : 'Save Image')}
+              </button>
+              {editingImageId && (
+                <button type="button" onClick={resetImageForm} className="px-4 py-3 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-white font-bold rounded-xl transition-colors">Cancel</button>
+              )}
+            </div>
+          </form>
+
+          <h3 className="font-bold text-gray-400 uppercase text-xs tracking-wider mb-3 pb-2 border-b border-gray-100 dark:border-gray-700">Active Images</h3>
+          <ul className="space-y-3 max-h-80 overflow-y-auto pr-2">
+            {images.map(image => (
+              <li key={image.id} className="flex justify-between items-center bg-gray-50 dark:bg-gray-900 p-3 rounded-xl border border-transparent hover:border-gray-200 dark:hover:border-gray-700 transition-colors">
+                <div className="flex items-center gap-3 overflow-hidden pr-4">
+                  <img src={image.url} alt={image.title} className="w-12 h-12 object-cover rounded-lg shadow-sm" />
+                  <div className="truncate">
+                    <span className="font-bold text-gray-900 dark:text-white block truncate">{image.title}</span>
+                    <span className="text-xs font-medium text-gray-500">{image.category}</span>
+                  </div>
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  <button onClick={() => startEditImage(image)} className="text-blue-600 hover:text-blue-800 text-sm font-bold bg-blue-100 dark:bg-blue-900/30 px-3 py-1 rounded-lg transition-colors">Edit</button>
+                  <button onClick={() => handleDelete('images', image.id)} className="text-red-600 hover:text-red-800 text-sm font-bold bg-red-100 dark:bg-red-900/30 px-3 py-1 rounded-lg transition-colors">Delete</button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        {/* --- USERS MANAGEMENT (FULL WIDTH SPAN) --- */}
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700 xl:col-span-2">
+          <h2 className="text-xl font-bold text-emerald-600 dark:text-emerald-400 mb-4 flex items-center gap-2">
+            <span>👥</span> User Management
+          </h2>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-gray-200 dark:border-gray-700">
+                  <th className="py-3 px-4 font-bold text-gray-400 uppercase text-xs tracking-wider">User / Email</th>
+                  <th className="py-3 px-4 font-bold text-gray-400 uppercase text-xs tracking-wider">Joined Date</th>
+                  <th className="py-3 px-4 font-bold text-gray-400 uppercase text-xs tracking-wider">Role</th>
+                  <th className="py-3 px-4 font-bold text-gray-400 uppercase text-xs tracking-wider text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {usersList.map(user => (
+                  <tr key={user.id} className="border-b border-gray-50 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-900/50 transition-colors">
+                    <td className="py-4 px-4">
+                      <div className="font-bold text-gray-900 dark:text-white">{user.displayName}</div>
+                      <div className="text-sm text-gray-500">{user.email}</div>
+                    </td>
+                    <td className="py-4 px-4 text-sm text-gray-600 dark:text-gray-300">
+                      {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}
+                    </td>
+                    <td className="py-4 px-4">
+                      <select 
+                        value={user.role || 'user'}
+                        onChange={(e) => handleRoleChange(user.id, e.target.value)}
+                        disabled={user.email === currentUser.email} // Prevent demoting yourself
+                        className="bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-sm rounded-lg focus:ring-emerald-500 focus:border-emerald-500 block w-full p-2 dark:text-white disabled:opacity-50 font-medium"
+                      >
+                        <option value="user">User</option>
+                        <option value="admin">Admin</option>
+                      </select>
+                    </td>
+                    <td className="py-4 px-4 text-right">
+                      <button 
+                        onClick={() => handleDelete('users', user.id)}
+                        disabled={user.email === currentUser.email} // Prevent deleting yourself
+                        className="text-red-600 hover:text-red-800 text-sm font-bold bg-red-100 dark:bg-red-900/30 px-3 py-2 rounded-lg transition-colors disabled:opacity-50"
+                      >
+                        Delete Record
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
-      )}
+
+      </div>
     </div>
   );
 }
